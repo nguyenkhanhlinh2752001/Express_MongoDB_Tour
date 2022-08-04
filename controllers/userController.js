@@ -1,22 +1,12 @@
-const e = require('express')
-const express = require('express')
-const fs = require('fs')
-
-const app = express()
-
-app.use(express.json())
-
-const tours = JSON.parse(fs.readFileSync(`${__dirname}/dev-data/data/tours-simple.json`))
-
-const getAllTours = (req, res) => {
-    res.status(200).json({
-        status: 'success',
-        results: tours.length,
-        data: { tours }
+exports.getAllUsers = (req, res) => {
+    res.status(500).json({
+        status: 'error',
+        message: 'Invalid route'
     })
 }
 
-const getTour = (req, res) => {
+
+exports.getUser = (req, res) => {
     console.log(req.params)
     const id = req.params.id * 1
     const tour = tours.find(el => el.id === id)
@@ -32,7 +22,7 @@ const getTour = (req, res) => {
     })
 }
 
-const createTour = (req, res) => {
+exports.createUser = (req, res) => {
     console.log(req.body)
     const newId = tours[tours.length - 1].id + 1
     const newTour = Object.assign({ id: newId }, req.body)
@@ -47,7 +37,7 @@ const createTour = (req, res) => {
     })
 }
 
-const updateTour = (req, res) => {
+exports.updateUser = (req, res) => {
     console.log(req.params)
     const id = req.params.id * 1
     const tour = tours.find(el => el.id === id)
@@ -67,7 +57,7 @@ const updateTour = (req, res) => {
     })
 }
 
-const deleteTour = (req, res) => {
+exports.deleteUser = (req, res) => {
     console.log(req.params)
     const id = req.params.id * 1
     const tour = tours.find(el => el.id === id)
@@ -84,17 +74,3 @@ const deleteTour = (req, res) => {
         data: null
     })
 }
-
-app.route('/tours')
-    .get(getAllTours)
-    .post(createTour)
-
-app.route('/tours/:id')
-    .get(getTour)
-    .patch(updateTour)
-    .delete(deleteTour)
-
-const PORT = 5000
-app.listen(PORT, (req, res) => {
-    console.log(`Server is running on port ${PORT} 😘 💯 ✅`)
-})
