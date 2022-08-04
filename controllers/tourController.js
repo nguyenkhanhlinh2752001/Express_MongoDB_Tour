@@ -4,18 +4,41 @@ const Tour = require('../models/tourModel')
 exports.getAllTours = async(req, res) => {
     try {
         // Build query string
-        // 1)Simple filtering
+        // 1A) Simple filtering
+        // Ex: http://localhost:5000/tours?price=1000
         const queryObj = {...req.query }
         console.log(queryObj)
         const excludedFields = ['page', 'sort', 'limit', 'fields']
         excludedFields.forEach(el => delete queryObj[el])
+            // const query = Tour.find(queryObj)
 
-        //2) Advanced filtering
+        //1B) Advanced filtering
+        //Ex: http://localhost:5000/tours?price[gte]=1000
         let queryStr = JSON.stringify(queryObj)
         queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, match => `$${ match }`)
         console.log(JSON.parse(queryStr));
+        let query = Tour.find(JSON.parse(queryStr))
 
-        const query = Tour.find(JSON.parse(queryStr))
+        // 2) Sorting
+        // Ex: http://localhost:5000/tours?sort=price
+        // Ex: http://localhost:5000/tours?sort=-price,-duration
+        if (req.query.sort) {
+            const sortBy = req.query.sort.split(',').join(' ')
+            console.log(sortBy)
+            query = query.sort(sortBy)
+        } else {
+            query = query.sort('-createAt')
+        }
+
+        // 3) Fields limiting (only choose specific fields or choose all fields except for some fields)
+        // Ex: http://localhost:5000/tours?fields=name,duration,difficulty
+        // Ex: http://localhost:5000/tours?fields=-name,-duration
+        if (req.query.fields) {
+            const fields = req.query.fields.split(',').join(' ')
+            query = query.select(fields)
+        } else {
+            query = query.select('-__v')
+        }
 
         // Execute query
         const tours = await query
