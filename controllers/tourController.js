@@ -1,63 +1,28 @@
 const fs = require('fs')
 const Tour = require('../models/tourModel')
+const APIFeatures = require('./../utils/apiFeatures')
+
+exports.aliasTopTours = async(req, res, next) => {
+    req.query.limit = '5'
+    req.query.sort = 'price,-ratingsAverage,'
+    req.query.fields = 'name,price,ratingsAverage,summary,difficulty'
+    next()
+}
 
 exports.getAllTours = async(req, res) => {
     try {
-        // Build query string
-        // 1A) Simple filtering
-        // Ex: http://localhost:5000/tours?price=1000
-        const queryObj = {...req.query }
-        console.log(queryObj)
-        const excludedFields = ['page', 'sort', 'limit', 'fields']
-        excludedFields.forEach(el => delete queryObj[el])
-            // const query = Tour.find(queryObj)
-
-        //1B) Advanced filtering
-        //Ex: http://localhost:5000/tours?price[gte]=1000
-        let queryStr = JSON.stringify(queryObj)
-        queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, match => `$${ match }`)
-        console.log(JSON.parse(queryStr));
-        let query = Tour.find(JSON.parse(queryStr))
-
-        // 2) Sorting
-        // Ex: http://localhost:5000/tours?sort=price
-        // Ex: http://localhost:5000/tours?sort=-price,-duration
-        if (req.query.sort) {
-            const sortBy = req.query.sort.split(',').join(' ')
-            console.log(sortBy)
-            query = query.sort(sortBy)
-        } else {
-            query = query.sort('-createAt')
-        }
-
-        // 3) Fields limiting (only choose specific fields or choose all fields except for some fields)
-        // Ex: http://localhost:5000/tours?fields=name,duration,difficulty
-        // Ex: http://localhost:5000/tours?fields=-name,-duration
-        if (req.query.fields) {
-            const fields = req.query.fields.split(',').join(' ')
-            query = query.select(fields)
-        } else {
-            query = query.select('-__v')
-        }
-
-        // 4) Pagination
-        // Ex: http://localhost:5000/tours?page=3&limit=3
-        // Ex: http://localhost:5000/tours?page=2&limit=10
-        // Mean page number 2 and limit 10 records per page
-        // 1-10: page 1 ; 11-20: page 2 ; 21-30: page 3 
-        const page = req.query.page * 1 || 1
-        const limit = req.query.limit * 1 || 10
-        const skip = (page - 1) * limit
-        query = query.skip(skip).limit(limit)
-
-        if (req.query.page) {
-            const numTours = await Tour.countDocuments()
-            if (page > Math.ceil(numTours / limit))
-                throw new Error('This page does not exist')
-        }
+        // Some advanced APIs
+        // Get top 5 biggest price records : http://localhost:5000/tours?limit=5&sort=-price
+        // Get top 3 smallest duration records : http://localhost:5000/tours?limit=3&sort=duration,ratingsAverage
+        // http://localhost:5000/tours?price[gte]=1000&duration[lt]=7&fields=name,sumary
 
         // Execute query
-        const tours = await query
+        const features = new APIFeatures(Tour.find(), req.query)
+            .filter()
+            .sort()
+            .limitFields()
+            .paginate()
+        const tours = await features.query
 
         // Send response
         res.status(200).json({
@@ -101,7 +66,6 @@ exports.createTour = async(req, res) => {
             message: error
         })
     }
-
 }
 
 exports.updateTour = async(req, res) => {
@@ -129,6 +93,43 @@ exports.deleteTour = async(req, res) => {
         res.status(204).json({
             status: 'success',
             data: null
+        })
+    } catch (error) {
+        res.status(404).json({
+            status: 'failed',
+            message: error
+        })
+    }
+}
+
+exports.getTourStats = async(req, res) => {
+    try {
+        const stats = await Tour.aggregate([{
+                $match: { ratingsAverage: { $gte: 4.5 } }
+            },
+            {
+                $group: {
+                    _id: { $toUpper: '$difficulty' },
+                    numTours: { $sum: 1 },
+                    numRatings: { $sum: '$ratingsQuantity' },
+                    avgRating: { $avg: '$ratingsAverage' },
+                    avgPrice: { $avg: '$price' },
+                    minPrice: { $min: '$price' },
+                    maxPrice: { $max: '$price' }
+                }
+            },
+            {
+                // 1: ascending
+                $sort: { avgPrice: 1 }
+            },
+            // {
+            //     // ne: not equal
+            //     $match: { _id: { $ne: 'EASY' } }
+            // }
+        ])
+        res.status(200).json({
+            status: 'success',
+            data: { stats }
         })
     } catch (error) {
         res.status(404).json({
